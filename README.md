@@ -2,6 +2,8 @@
 
 Welcome to SushiNference, a C# .NET project that implements a Bayesian inference-based sushi recommendation engine. This project leverages the power of probabilistic programming to provide personalized sushi recommendations based on user preferences and item characteristics.
 
+![Sushi](docs/Sushi.png)
+
 ## Table of Contents
 - [Introduction](#introduction)
 - [Dataset](#dataset)
