@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.ML.Probabilistic" Version="0.4.2403.801" />
     <PackageReference Include="Microsoft.ML.Probabilistic.Compiler" Version="0.4.2403.801" />
   </ItemGroup>
 
