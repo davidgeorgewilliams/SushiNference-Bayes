@@ -1,8 +1,9 @@
+using Microsoft.ML.Probabilistic.Algorithms;
 using Microsoft.ML.Probabilistic.Distributions;
 using Microsoft.ML.Probabilistic.Models;
-using Microsoft.ML.Probabilistic.Math;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using SushiNference.Models;
 
 public class SushiRecommender
@@ -21,59 +22,80 @@ public class SushiRecommender
         Console.WriteLine($"Loaded {sushiItems.Count} sushi items");
         Console.WriteLine($"Loaded preferences for {userPreferences.Count} users");
 
-        // Create a simple collaborative filtering model
-        var numUsers = userPreferences.Count;
-        var numItems = sushiItems.Count;
-        var userFactors = new Variable<Vector>[numUsers];
-        var itemFactors = new Variable<Vector>[numItems];
-        var ratings = new Variable<double>[numUsers, numItems];
+        var userCount = new Microsoft.ML.Probabilistic.Models.Range(userPreferences.Count);
+        var sushiCount = new Microsoft.ML.Probabilistic.Models.Range(sushiItems.Count);
+        var ratingCount = new Microsoft.ML.Probabilistic.Models.Range(userPreferences.Count * sushiItems.Count);
 
-        for (int u = 0; u < numUsers; u++)
+        Console.WriteLine("Creating model variables...");
+
+        var userPreferenceVars = Variable.Array<double>(userCount);
+        var sushiQualityVars = Variable.Array<double>(sushiCount);
+
+        userPreferenceVars[userCount] = Variable.GaussianFromMeanAndVariance(0, 1).ForEach(userCount);
+        sushiQualityVars[sushiCount] = Variable.GaussianFromMeanAndVariance(0, 1).ForEach(sushiCount);
+
+        var users = Variable.Array<int>(ratingCount);
+        var sushis = Variable.Array<int>(ratingCount);
+        var observedRatings = Variable.Array<double>(ratingCount);
+
+        Console.WriteLine("Setting up rating model...");
+
+        using (Variable.ForEach(ratingCount))
         {
-            userFactors[u] = Variable.VectorGaussianFromMeanAndPrecision(
-                Vector.FromArray(new double[] { 0, 0 }),
-                PositiveDefiniteMatrix.IdentityScaledBy(2, 1)).Named($"user{u}");
+            var u = users[ratingCount];
+            var s = sushis[ratingCount];
+            
+            var ratingMean = userPreferenceVars[u] + sushiQualityVars[s];
+            observedRatings[ratingCount] = Variable.GaussianFromMeanAndVariance(ratingMean, 0.1);
         }
 
-        for (int i = 0; i < numItems; i++)
-        {
-            itemFactors[i] = Variable.VectorGaussianFromMeanAndPrecision(
-                Vector.FromArray(new double[] { 0, 0 }),
-                PositiveDefiniteMatrix.IdentityScaledBy(2, 1)).Named($"item{i}");
-        }
+        Console.WriteLine("Preparing observed data...");
 
-        for (int u = 0; u < numUsers; u++)
+        var flattenedUsers = new List<int>();
+        var flattenedSushis = new List<int>();
+        var flattenedRatings = new List<double>();
+
+        for (int u = 0; u < userPreferences.Count; u++)
         {
-            for (int i = 0; i < numItems; i++)
+            for (int s = 0; s < sushiItems.Count; s++)
             {
-                ratings[u, i] = Variable.GaussianFromMeanAndPrecision(
-                    Variable.InnerProduct(userFactors[u], itemFactors[i]), 1).Named($"rating{u},{i}");
+                flattenedUsers.Add(u);
+                flattenedSushis.Add(s);
+                flattenedRatings.Add(userPreferences[u].Ratings[s]);
             }
         }
 
-        // Observe the known ratings
-        for (int u = 0; u < numUsers; u++)
-        {
-            for (int i = 0; i < numItems; i++)
-            {
-                ratings[u, i].ObservedValue = userPreferences[u].Ratings[i];
-            }
-        }
+        Console.WriteLine("Attaching observed data to the model...");
 
-        // Perform inference
-        var engine = new InferenceEngine();
+        users.ObservedValue = flattenedUsers.ToArray();
+        sushis.ObservedValue = flattenedSushis.ToArray();
+        observedRatings.ObservedValue = flattenedRatings.ToArray();
+
         Console.WriteLine("Performing inference...");
 
-        // Infer factors for a specific user (e.g., user 0)
-        var userFactorPosterior = engine.Infer<VectorGaussian>(userFactors[0]);
-        Console.WriteLine($"User 0 factor posterior mean: {userFactorPosterior.GetMean()}");
+        var inferenceEngine = new InferenceEngine(new VariationalMessagePassing());
+        var inferredUserPreferences = inferenceEngine.Infer<Gaussian[]>(userPreferenceVars);
+        var inferredSushiQualities = inferenceEngine.Infer<Gaussian[]>(sushiQualityVars);
 
-        // Predict ratings for user 0
-        Console.WriteLine("Predicted ratings for user 0:");
-        for (int i = 0; i < numItems; i++)
+        Console.WriteLine("Inference completed. Displaying results...");
+
+        Console.WriteLine("\nUser Preferences (sample of first 5):");
+        for (int i = 0; i < Math.Min(5, inferredUserPreferences.Length); i++)
         {
-            var predictedRating = engine.Infer<Gaussian>(ratings[0, i]);
-            Console.WriteLine($"{sushiItems[i].Name}: {predictedRating.GetMean():F2}");
+            Console.WriteLine($"User {i}: Mean = {inferredUserPreferences[i].GetMean():F2}, Variance = {inferredUserPreferences[i].GetVariance():F2}");
+        }
+
+        Console.WriteLine("\nSushi Qualities (sample of first 5):");
+        for (int i = 0; i < Math.Min(5, inferredSushiQualities.Length); i++)
+        {
+            Console.WriteLine($"{sushiItems[i].Name}: Mean = {inferredSushiQualities[i].GetMean():F2}, Variance = {inferredSushiQualities[i].GetVariance():F2}");
+        }
+
+        Console.WriteLine("\nPredicted ratings for User 0 (sample of first 5 sushi items):");
+        for (int i = 0; i < Math.Min(5, sushiItems.Count); i++)
+        {
+            var predictedRating = inferredUserPreferences[0].GetMean() + inferredSushiQualities[i].GetMean();
+            Console.WriteLine($"{sushiItems[i].Name}: {predictedRating:F2}");
         }
     }
 }
