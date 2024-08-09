@@ -7,8 +7,9 @@ namespace SushiNference.Models
         public string Style { get; set; } = string.Empty;
         public string MajorGroup { get; set; } = string.Empty;
         public string MinorGroup { get; set; } = string.Empty;
-        public double Oiliness { get; set; }
-        public bool IsEaten { get; set; }
-        public double Frequency { get; set; }
+        public double Heaviness { get; set; }
+        public double EatingFrequency { get; set; }
+        public double NormalizedPrice { get; set; }
+        public double SoldFrequency { get; set; }
     }
 }

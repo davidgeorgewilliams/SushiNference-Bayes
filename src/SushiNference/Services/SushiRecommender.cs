@@ -79,20 +79,7 @@ public class SushiRecommender
 
         Console.WriteLine("Inference completed.");
 
-        
         Console.WriteLine("Inference completed. Displaying results...");
-
-        Console.WriteLine("\nUser Preferences (sample of first 5):");
-        for (int i = 0; i < Math.Min(5, inferredUserPreferences.Length); i++)
-        {
-            Console.WriteLine($"User {i}: Mean = {inferredUserPreferences[i].GetMean():F2}, Variance = {inferredUserPreferences[i].GetVariance():F8}");
-        }
-
-        Console.WriteLine("\nSushi Qualities (sample of first 5):");
-        for (int i = 0; i < Math.Min(5, inferredSushiQualities.Length); i++)
-        {
-            Console.WriteLine($"{sushiItems[i].Name}: Mean = {inferredSushiQualities[i].GetMean():F2}, Variance = {inferredSushiQualities[i].GetVariance():F8}");
-        }
 
         Console.WriteLine("\nPredicted ratings for User 0 (sample of first 5 sushi items):");
         for (int i = 0; i < Math.Min(5, sushiItems.Count); i++)
